@@ -29,6 +29,7 @@
 // DEEPMIND INTERNAL IMPORT
 #include "mjpc/tasks/particle/particle.h"
 #include "mjpc/tasks/quadrotor/quadrotor.h"
+#include "mjpc/tasks/quadrotor2/quadrotor2.h"
 #include "mjpc/tasks/quadruped/quadruped.h"
 #include "mjpc/tasks/swimmer/swimmer.h"
 #include "mjpc/tasks/walker/walker.h"
@@ -49,6 +50,7 @@ std::vector<std::shared_ptr<Task>> GetTasks() {
     std::make_shared<Panda>(),
     std::make_shared<Particle>(),
     std::make_shared<Quadrotor>(),
+    std::make_shared<Quadrotor2>(),
     std::make_shared<QuadrupedFlat>(),
     std::make_shared<QuadrupedHill>(),
     std::make_shared<Swimmer>(),

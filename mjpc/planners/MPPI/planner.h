@@ -36,15 +36,17 @@ inline constexpr int MaxMPPISamplingSplinePower = 5;
 inline constexpr double MinMPPINoiseStdDev = 0.0;
 inline constexpr double MaxMPPINoiseStdDev = 1.0;
 inline constexpr double MinMPPIinvTemp = 0.0;
-inline constexpr double MaxMPPIinvTemp = 10.0;
+inline constexpr double MaxMPPIinvTemp = 40.0;
 inline constexpr double MinMPPIGamma = 0.0;
 inline constexpr double MaxMPPIGamma = 1.0;
 inline constexpr double MinMPPIAlphamu = 0.0;
 inline constexpr double MaxMPPIAlphamu = 1.0;
 inline constexpr double MinMPPIAlphasig = 0.0;
 inline constexpr double MaxMPPIAlphasig = 1.0;
-inline constexpr double MinMPPIetha = 5.0;
-inline constexpr double MaxMPPIetha = 10.0;
+inline constexpr double MinminMPPIetha = 0.0001;
+inline constexpr double MinmaxMPPIetha = 1;
+inline constexpr double MaxminMPPIetha = 0.1;
+inline constexpr double MaxmaxMPPIetha = 3.0;
 
 class MPPIPlanner : public RankedPlanner {
  public:
@@ -82,7 +84,7 @@ class MPPIPlanner : public RankedPlanner {
   void UpdateNominalPolicy(int horizon);
 
   // add noise to nominal policy
-  void AddNoiseToPolicy(int i);
+  void AddNoiseToPolicy(int i, int horizon);
 
   // compute candidate trajectories
   void Rollouts(int num_trajectory, int horizon, ThreadPool& pool);
@@ -168,6 +170,8 @@ class MPPIPlanner : public RankedPlanner {
   double policy_update_compute_time;
 
   int num_trajectory_;
+  int num_spline_points_;
+
   mutable std::shared_mutex mtx_;
 
   // inverse temperature
@@ -187,6 +191,15 @@ class MPPIPlanner : public RankedPlanner {
 
   //alpha_sig # from STORM paper.
   double alpha_sig;
+
+  // previous min_trajectory cost
+  double previous_min_return;
+
+  //if cost have increased compared to previous_min_return, it have true
+  bool cost_trigger = false; 
+
+  double Minetha;
+  double Maxetha;
 };
 
 }  // namespace mjpc

@@ -43,7 +43,8 @@ void MPPIPolicy::Allocate(const mjModel* model, const Task& task,
   // spline points
   num_spline_points = GetNumberOrDefault(kMaxTrajectoryHorizon, model,
                                          "sampling_spline_points");
-
+  //num_spline_points = 5;
+  //std::cout << " num spline points : " << num_spline_points << std::endl;
   // representation
   representation = GetNumberOrDefault(PolicyRepresentation::kCubicSpline, model,
                                       "sampling_representation");

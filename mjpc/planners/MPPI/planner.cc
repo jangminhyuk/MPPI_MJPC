@@ -53,13 +53,19 @@ void MPPIPlanner::Initialize(mjModel* model, const Task& task) {
   // set number of trajectories to rollout
   num_trajectory_ = GetNumberOrDefault(10, model, "sampling_trajectories");
 
+  // set splines num
+  num_spline_points_ = GetNumberOrDefault(10, model, "sampling_spline_points");
+
   lambda = GetNumberOrDefault(0.01, model, "MPPI lambda");
 
   gamma = GetNumberOrDefault(1, model, "MPPI gamma");
 
-  alpha_mu = GetNumberOrDefault(1, model, "MPPI alpha_mu");
+  alpha_mu = GetNumberOrDefault(0.99, model, "MPPI alpha_mu");
 
-  alpha_sig = GetNumberOrDefault(0, model, "MPPI alpha_sig");
+  alpha_sig = GetNumberOrDefault(0.01, model, "MPPI alpha_sig");
+
+  Minetha = GetNumberOrDefault(5, model, "MPPI MinMPPIetha");
+  Maxetha = GetNumberOrDefault(15, model, "MPPI MaxMPPIetha");
 
   if (num_trajectory_ > kMaxTrajectory) {
     mju_error_i("Too many trajectories, %d is the maximum allowed.",
@@ -104,6 +110,7 @@ void MPPIPlanner::Allocate() {
                              task->num_trace, kMaxTrajectoryHorizon);
     trajectory[i].Allocate(kMaxTrajectoryHorizon);
     candidate_policy[i].Allocate(model, *task, kMaxTrajectoryHorizon);
+    candidate_policy[i].num_spline_points = num_spline_points_; // added by me
     trajectory[i].MPPIinitialize(gamma);
   }
 
@@ -162,6 +169,16 @@ void MPPIPlanner::SetState(const State& state) {
 
 int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
                                               ThreadPool& pool) {
+
+  // if num_spline_points_ has changed, use it in this new iteration
+  // num_spline_points_ might change while this function runs. Keep it constant
+  // for the duration of this function.
+  policy.num_spline_points = num_spline_points_; // added by me ! 
+  previous_policy.num_spline_points = num_spline_points_; // added by me!
+  for (int i = 0; i < kMaxTrajectory; i++) {
+    candidate_policy[i].num_spline_points = num_spline_points_; // added by me
+  }
+
   // if num_trajectory_ has changed, use it in this new iteration.
   // num_trajectory_ might change while this function runs. Keep it constant
   // for the duration of this function.
@@ -173,6 +190,7 @@ int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
   // start timer
   auto rollouts_start = std::chrono::steady_clock::now();
 
+  //std::cout<< "candiate policy[0] scratch begin "<< candidate_policy[0].parameters.at(0) << std::endl;
   // simulate noisy policies
   this->Rollouts(num_trajectory, horizon, pool);
 
@@ -193,13 +211,23 @@ int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
 
   //std::cout << trajectory[winner].total_return << "\n";
   //std::cout << trajectory_order.size() << "\n"
+
+  //std::cout<< "candiate policy[0] scratch middle "<< candidate_policy[0].parameters.at(0) << std::endl;
   double min_return = trajectory[0].total_return;
   for(int i = 0 ; i < num_trajectory; i++){
     if(trajectory[i].total_return < min_return){
       min_return = trajectory[i].total_return;
     }
+    //std::cout<<"traj : "<<i<<"/ return cost : "<< trajectory[i].total_return <<std::endl;
   }
-  
+  // if(min_return >= previous_min_return){ // if new trajectory have bad performance
+  //   cost_trigger = true;
+  // }
+  // else{
+  //   cost_trigger = false;
+  // }
+
+  previous_min_return = min_return;
   
   // now, min_return have the lowest cost
   etha = 0;
@@ -213,33 +241,46 @@ int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
   for(int i = 0 ; i< num_trajectory; i++){
     importance_weight[i] /= etha;
   }
-  
-  for(int t = 0 ; t < horizon; t++ ){
+  //std::cout<< "candiate policy[0] scratch begin "<< candidate_policy[0].parameters.at(0) << std::endl;
+  for(int t = 0 ; t < num_spline_points_; t++ ){
     for(int u = 0 ; u < model->nu ; u++){
       //for each input
       double tmp_mean = (1-alpha_mu)*candidate_policy[0].parameters.at(t*model->nu + u);//from nominal policy
       double tmp_var = (1-alpha_sig)*cov_parameters_scratch.at(t*model->nu + u);//from previous cov
+      //std::cout<<"step be : "<< t <<" / tmp_mean "<< u <<" : " << tmp_mean <<std::endl;
       for(int i = 0 ; i< num_trajectory; i++){//mean calculate
+        //std::cout<<"trajectory : "<< i <<" / tmp_mean "<< u <<" : " << tmp_mean <<std::endl;
         tmp_mean += alpha_mu*importance_weight[i]*candidate_policy[i].parameters.at(t*model->nu + u);
+        //std::cout<<"step : "<< t << "/ candidate_policy[i].parameters.at(t*model->nu + u) : "<< candidate_policy[i].parameters.at(t*model->nu + u) <<std::endl;
       }
+      
       for(int i = 0 ; i< num_trajectory; i++){//cov calculate
-        tmp_var += alpha_sig*importance_weight[i]* std::pow((candidate_policy[i].parameters.at(t*model->nu + u)-candidate_policy[0].parameters.at(t*model->nu + u)),2);
+        //tmp_var += alpha_sig*importance_weight[i]* std::pow(candidate_policy[i].parameters.at(t*model->nu + u)-tmp_mean,2);
+        tmp_var += alpha_sig*importance_weight[i]* std::pow(candidate_policy[i].parameters.at(t*model->nu + u)-tmp_mean,2);
         //tmp_var += alpha_sig*importance_weight[i]* std::pow(candidate_policy[i].parameters.at(t*model->nu + u),2);
+        //std::cout<<"step: "<< t <<" / tmp_var "<< tmp_var <<std::endl;
       }
+      //std::cout<<"step: "<< t <<" / tmp_mean "<< u <<" : " << tmp_mean <<std::endl;
+      //std::cout<<"step: "<< t <<" / candidate 2  "<< candidate_policy[2].parameters.at(t*model->nu + u) <<std::endl;
       //put new mean/cov into variable
+      
       candidate_policy[0].parameters.at(t*model->nu + u) = tmp_mean;
+
+      // if(tmp_var< 0.5* noise_exploration){
+      //   tmp_var += 0.1 * noise_exploration;
+      // }
+      tmp_var += 0.01 * noise_exploration;
       cov_parameters_scratch.at(t*model->nu + u) = tmp_var;
+      //std::cout<<"step: "<< t << " / u : "<< u << " / tmp_var "<< tmp_var <<std::endl;
     }
   }
-  if(etha > MaxMPPIetha){
+  if(etha > Maxetha){
     lambda *= 0.9;
   }
-  else if(etha < MinMPPIetha){
+  else if(etha < Minetha){
     lambda *= 1.2;
   }
-
-  
-  std::cout<< "cov par scratch "<< cov_parameters_scratch.at(0) << std::endl;
+  //std::cout<< "cov par scratch end "<< cov_parameters_scratch.at(0) << std::endl;
   // compute trajectory again using the new MPPI policy
   NominalTrajectory(horizon, pool); //total_return will be calculated using this new trajectory
 
@@ -271,6 +312,7 @@ void MPPIPlanner::OptimizePolicy(int horizon, ThreadPool& pool) {
 // compute trajectory using nominal policy
 void MPPIPlanner::NominalTrajectory(int horizon, ThreadPool& pool) {
   // set policy
+  //std::cout<< "candiate policy[0] scratch here "<< candidate_policy[0].parameters.at(0) << std::endl;
   auto nominal_policy = [&cp = candidate_policy[0]](
                             double* action, const double* state, double time) {
     cp.Action(action, state, time);
@@ -310,8 +352,8 @@ void MPPIPlanner::UpdateNominalPolicy(int horizon) {
                                nullptr, nominal_time);
     nominal_time += time_shift;
   }
-
-  // update
+  //std::cout<<"params scractch2 : "<<parameters_scratch.at(0) << std::endl;
+  // update 
   {
     const std::shared_lock<std::shared_mutex> lock(mtx_);
     // parameters
@@ -326,13 +368,14 @@ void MPPIPlanner::UpdateNominalPolicy(int horizon) {
 }
 
 // add random noise to nominal policy
-void MPPIPlanner::AddNoiseToPolicy(int i) {
+void MPPIPlanner::AddNoiseToPolicy(int i, int horizon) {
   // start timer
   auto noise_start = std::chrono::steady_clock::now();
 
   // dimensions
   int num_spline_points = candidate_policy[i].num_spline_points;
   int num_parameters = candidate_policy[i].num_parameters;
+  //int num_parameters = model->nu * horizon;
 
   // sampling token
   absl::BitGen gen_;
@@ -340,6 +383,7 @@ void MPPIPlanner::AddNoiseToPolicy(int i) {
   // shift index
   int shift = i * (model->nu * kMaxTrajectoryHorizon);
 
+  //std::cout <<" num param : " <<num_parameters << std::endl;
   // sample noise
   for (int k = 0; k < num_parameters; k++) {
     //use nominal covariance to generate noise
@@ -368,7 +412,7 @@ void MPPIPlanner::Rollouts(int num_trajectory, int horizon,
   noise_compute_time = 0.0;
 
   policy.num_parameters = model->nu * policy.num_spline_points;
-
+  //std::cout << "num spline points : " << policy.num_spline_points <<std::endl;
   // random search
   int count_before = pool.GetCount();
   for (int i = 0; i < num_trajectory; i++) {
@@ -384,8 +428,8 @@ void MPPIPlanner::Rollouts(int num_trajectory, int horizon,
       }
 
       // sample noise policy
-      if (i != 0) s.AddNoiseToPolicy(i);
-
+      if (i != 0) s.AddNoiseToPolicy(i, horizon);
+      //s.AddNoiseToPolicy(i);
       // ----- rollout sample policy ----- //
 
       // policy
@@ -465,14 +509,17 @@ void MPPIPlanner::GUI(mjUI& ui) {
       {mjITEM_SLIDERINT, "Rollouts", 2, &num_trajectory_, "0 1"},
       {mjITEM_SELECT, "Spline", 2, &policy.representation,
        "Zero\nLinear\nCubic"},
-      {mjITEM_SLIDERINT, "Spline Pts", 2, &policy.num_spline_points, "0 1"},
+      //{mjITEM_SLIDERINT, "Spline Pts", 2, &policy.num_spline_points, "0 1"},
+      {mjITEM_SLIDERINT, "Spline Pts", 2, &num_spline_points_, "0 1"},
       // {mjITEM_SLIDERNUM, "Spline Pow. ", 2, &timestep_power, "0 10"},
       // {mjITEM_SELECT, "Noise type", 2, &noise_type, "Gaussian\nUniform"},
       {mjITEM_SLIDERNUM, "Noise Std", 2, &noise_exploration, "0 1"},
       {mjITEM_SLIDERNUM, "Inverse temperature", 2, &lambda, "0 1"},
       {mjITEM_SLIDERNUM, "Discount Factor", 2, &gamma, "0 1"},
-      {mjITEM_SLIDERNUM, "Alpha_mu", 2, &alpha_mu, "0 1"},
-      {mjITEM_SLIDERNUM, "Alpha_sig", 2, &alpha_sig, "0 1"},
+      {mjITEM_SLIDERNUM, "Alpha mu", 2, &alpha_mu, "0 1"},
+      {mjITEM_SLIDERNUM, "Alpha sig", 2, &alpha_sig, "0 1"},
+      {mjITEM_SLIDERNUM, "Min MPPI etha", 2, &Minetha, "0 1"},
+      {mjITEM_SLIDERNUM, "Max MPPI etha", 2, &Maxetha, "0 1"},
       {mjITEM_END}};
 
   // set number of trajectory slider limits
@@ -501,6 +548,12 @@ void MPPIPlanner::GUI(mjUI& ui) {
   // set alpha _sig from Storm Paper
   mju::sprintf_arr(defSampling[7].other, "%f %f", MinMPPIAlphasig,
                    MaxMPPIAlphasig);
+
+  mju::sprintf_arr(defSampling[8].other, "%f %f", MinminMPPIetha,
+                   MinmaxMPPIetha);
+
+  mju::sprintf_arr(defSampling[9].other, "%f %f", MaxminMPPIetha,
+                   MaxmaxMPPIetha);
 
   // add sampling planner
   mjui_add(&ui, defSampling);

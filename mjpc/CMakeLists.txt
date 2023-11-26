@@ -60,6 +60,8 @@ add_library(
   tasks/particle/particle.h
   tasks/quadrotor/quadrotor.cc
   tasks/quadrotor/quadrotor.h
+  tasks/quadrotor2/quadrotor2.cc
+  tasks/quadrotor2/quadrotor2.h
   tasks/quadruped/quadruped.cc
   tasks/quadruped/quadruped.h
   tasks/swimmer/swimmer.cc
