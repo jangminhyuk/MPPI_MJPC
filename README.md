@@ -2,7 +2,7 @@
 ## Note (2023/12/23)
 This repository was originally obtained from [MJPC](https://github.com/google-deepmind/mujoco_mpc), which was downloaded on October 18, 2023. For the most recent updates in MJPC itself, you should visit the official MJPC repository. I have made a few modifications to integrate the **Model Predictive Path Integral (MPPI)** control method into **MJPC** for my personal project. I decided to upload the entire MJPC repository since my changes involved some specific changes within the original MJPC to ensure compatibility with my new code. **It's important to clarify that the copyrights for the MJPC code do not belong to me**; I have only added the MPPI controller and made a few adjustments to suit it to my specific requirements. I'd like to express my gratitude to Google DeepMind for making the entire MJPC code publicly available.
 
-Below is the readme file copied from the original MJPC repository. I Strongly Recommend you to make sure the original MJPC runs in your environment before testing with my repository.
+Below is the readme file copied from the original MJPC repository. I Strongly Recommend you to make sure the original MJPC runs in your environment before testing with my repository. Note that my implementation was developed based on the Windows environment.
 
 ## Readme
 
