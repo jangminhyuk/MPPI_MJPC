@@ -43,10 +43,10 @@ inline constexpr double MinMPPIAlphamu = 0.0;
 inline constexpr double MaxMPPIAlphamu = 1.0;
 inline constexpr double MinMPPIAlphasig = 0.0;
 inline constexpr double MaxMPPIAlphasig = 1.0;
-inline constexpr double MinminMPPIetha = 0.0001;
-inline constexpr double MinmaxMPPIetha = 1;
-inline constexpr double MaxminMPPIetha = 0.1;
-inline constexpr double MaxmaxMPPIetha = 3.0;
+// inline constexpr double MinminMPPIetha = 0.0001;
+// inline constexpr double MinmaxMPPIetha = 1;
+// inline constexpr double MaxminMPPIetha = 0.1;
+// inline constexpr double MaxmaxMPPIetha = 3.0;
 
 class MPPIPlanner : public RankedPlanner {
  public:
@@ -198,8 +198,10 @@ class MPPIPlanner : public RankedPlanner {
   //if cost have increased compared to previous_min_return, it have true
   bool cost_trigger = false; 
 
-  double Minetha;
-  double Maxetha;
+  // double Minetha;
+  // double Maxetha;
+  double lam_coeff;
+  double lam_power;
 };
 
 }  // namespace mjpc

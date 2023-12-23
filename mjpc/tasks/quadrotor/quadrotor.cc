@@ -40,7 +40,7 @@ void Quadrotor::ResidualFn::Residual(const mjModel* model, const mjData* data,
   // ---------- Residual (0) ----------
   double* position = SensorByName(model, data, "position");
   mju_sub(residuals, position, data->mocap_pos, 3);
-
+  
   // ---------- Residual (1) ----------
   double quadrotor_mat[9];
   double* orientation = SensorByName(model, data, "orientation");

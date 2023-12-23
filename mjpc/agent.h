@@ -23,6 +23,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <iostream>
+#include <fstream>
 
 #include <absl/functional/any_invocable.h>
 #include <mujoco/mujoco.h>
@@ -33,6 +35,7 @@
 #include "mjpc/task.h"
 #include "mjpc/threadpool.h"
 #include "mjpc/utilities.h"
+
 
 namespace mjpc {
 
@@ -50,7 +53,9 @@ class Agent {
 
   // constructor
   Agent()
-      : planners_(mjpc::LoadPlanners()), estimators_(mjpc::LoadEstimators()) {}
+      : planners_(mjpc::LoadPlanners()), estimators_(mjpc::LoadEstimators()) {
+        
+      }
   explicit Agent(const mjModel* model, std::shared_ptr<Task> task);
 
   // destructor
@@ -247,6 +252,12 @@ class Agent {
 
   // max threads for estimation
   int estimator_threads_;
+
+  // for data output
+  
+  double data1[10000][4];
+  int count;
+  //std::ofstream myfile{"data.txt"};
 };
 
 }  // namespace mjpc

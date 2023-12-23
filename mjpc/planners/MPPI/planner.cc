@@ -18,6 +18,7 @@
 #include <chrono>
 #include <mutex>
 #include <shared_mutex>
+#include <cmath>
 
 #include <absl/random/random.h>
 #include <mujoco/mujoco.h>
@@ -64,8 +65,8 @@ void MPPIPlanner::Initialize(mjModel* model, const Task& task) {
 
   alpha_sig = GetNumberOrDefault(0.01, model, "MPPI alpha_sig");
 
-  Minetha = GetNumberOrDefault(5, model, "MPPI MinMPPIetha");
-  Maxetha = GetNumberOrDefault(15, model, "MPPI MaxMPPIetha");
+  lam_coeff = GetNumberOrDefault(5, model, "lambda coefficient");
+  lam_power = GetNumberOrDefault(-2, model, "lambda power");
 
   if (num_trajectory_ > kMaxTrajectory) {
     mju_error_i("Too many trajectories, %d is the maximum allowed.",
@@ -228,7 +229,15 @@ int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
   // }
 
   previous_min_return = min_return;
-  
+
+  //update lambda!
+  if(lambda < lam_coeff * pow(10, lam_power)){
+    lambda *=1.2;
+  }
+  else{
+    lambda *=0.9;
+  }
+
   // now, min_return have the lowest cost
   etha = 0;
   for(int i = 0 ; i < num_trajectory; i++){
@@ -274,12 +283,9 @@ int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
       //std::cout<<"step: "<< t << " / u : "<< u << " / tmp_var "<< tmp_var <<std::endl;
     }
   }
-  if(etha > Maxetha){
-    lambda *= 0.9;
-  }
-  else if(etha < Minetha){
-    lambda *= 1.2;
-  }
+  
+  
+
   //std::cout<< "cov par scratch end "<< cov_parameters_scratch.at(0) << std::endl;
   // compute trajectory again using the new MPPI policy
   NominalTrajectory(horizon, pool); //total_return will be calculated using this new trajectory
@@ -518,8 +524,8 @@ void MPPIPlanner::GUI(mjUI& ui) {
       {mjITEM_SLIDERNUM, "Discount Factor", 2, &gamma, "0 1"},
       {mjITEM_SLIDERNUM, "Alpha mu", 2, &alpha_mu, "0 1"},
       {mjITEM_SLIDERNUM, "Alpha sig", 2, &alpha_sig, "0 1"},
-      {mjITEM_SLIDERNUM, "Min MPPI etha", 2, &Minetha, "0 1"},
-      {mjITEM_SLIDERNUM, "Max MPPI etha", 2, &Maxetha, "0 1"},
+      {mjITEM_SLIDERNUM, "Lambda coeff ", 2, &lam_coeff, "0 1"},
+      {mjITEM_SLIDERNUM, "Lambda power", 2, &lam_power, "0 1"},
       {mjITEM_END}};
 
   // set number of trajectory slider limits
@@ -549,11 +555,11 @@ void MPPIPlanner::GUI(mjUI& ui) {
   mju::sprintf_arr(defSampling[7].other, "%f %f", MinMPPIAlphasig,
                    MaxMPPIAlphasig);
 
-  mju::sprintf_arr(defSampling[8].other, "%f %f", MinminMPPIetha,
-                   MinmaxMPPIetha);
+  mju::sprintf_arr(defSampling[8].other, "%f %f", 0,
+                   9.999);
 
-  mju::sprintf_arr(defSampling[9].other, "%f %f", MaxminMPPIetha,
-                   MaxmaxMPPIetha);
+  mju::sprintf_arr(defSampling[9].other, "%d %d", -50,
+                   10);
 
   // add sampling planner
   mjui_add(&ui, defSampling);

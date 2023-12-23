@@ -24,6 +24,8 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <iostream>
+#include <fstream>
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/strings/match.h>
@@ -139,6 +141,14 @@ void Agent::Initialize(const mjModel* model) {
   // planner threads
   planner_threads_ =
       std::max(1, NumAvailableHardwareThreads() - 3 - 2 * estimator_threads_);
+
+  // open data file!!
+  // myfile.open("data.txt",std::ios::in | std::ios::out | std::ios::app);
+  // if(myfile.is_open()){
+  //   std::cout<<"opened!"<<std::endl;
+  // }
+  //std::ofstream myfile("data.txt");
+  count = 0; //initialize
 }
 
 // allocate memory
@@ -941,12 +951,53 @@ void Agent::Plots(const mjData* data, int shift) {
     return;
   }
 
+  
+
   // ----- cost ----- //
   double cost_bounds[2] = {0.0, 1.0};
 
   // compute current cost
   // residual values are the first entries in sensordata
   const double* residual = data->sensordata;
+
+  //for quadrotor report !! need to be erased after use
+  //myfile.seekg(0);
+  //std::cout <<myfile.rdbuf();
+  //myfile << data->qpos[2] <<std::endl;
+  // if (myfile.is_open() && data->time > 10){
+  //   myfile << data->qpos[2] <<std::endl;
+    
+  //   //std::cout <<data->qpos[2] <<std::endl;
+  //   //std::cout << data->time << std::endl;
+  //   if(data->time >20){
+  //     myfile.close();
+  //     std::cout<<"closed! "<<std::endl;
+  //   }
+  // }
+  
+  // if(data->time > 15 && data->time <25){
+  //   data1[count][0]=data->time; // time
+  //   data1[count][1]=data->qpos[0]; //x
+  //   data1[count][2]=data->qpos[1]; //y
+  //   data1[count][3]=data->qpos[2]; //z
+  //   //std::cout << data->qpos[0] << " " <<data->qpos[1] << " " <<data->qpos[2] << std::endl;
+  //   count++;
+  // }
+  // if(data->time > 27 && count <10000){
+  //   std::ofstream myfile;
+  //   myfile.open("data.txt");
+  //   if(myfile.is_open()){
+  //     std::cout<<"opened!"<<std::endl;
+  //   }
+  //   for(int i = 0 ; i < count; i++){
+  //     std::cout << data1[i][0]-15 << "," << data1[i][1] << "," << data1[i][2] << "," << data1[i][3] << std::endl;
+  //   }
+  //   count = 1111111;
+  //   myfile.close();
+  //   exit(0);
+  // }
+
+  //std::cout << "data " << std::endl;
   cost_ = ActiveTask()->CostValue(residual);
 
   // compute individual costs
