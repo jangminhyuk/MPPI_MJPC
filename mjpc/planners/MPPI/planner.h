@@ -76,6 +76,9 @@ class MPPIPlanner : public RankedPlanner {
   // compute trajectory using nominal policy
   void NominalTrajectory(int horizon, ThreadPool& pool) override;
 
+  // compute trajectory using MPPI policy
+  void MPPI_NominalTrajectory(int horizon, ThreadPool& pool, int ith);
+
   // set action from policy
   void ActionFromPolicy(double* action, const double* state,
                         double time, bool use_previous = false) override;
@@ -116,6 +119,17 @@ class MPPIPlanner : public RankedPlanner {
 
   void CopyCandidateToPolicy(int candidate) override;
 
+  void Cal_MPPI_candidate(double lambda_candidate, double min_return, int num_trajectory, int ith_lambda);
+
+  // Added by me !! 
+  void setCurrentCost(double cost) override{
+    current_cost = cost;
+  }
+
+  int Optimize_Lambda(int horizon);
+  int best_lambda;
+  double current_cost;
+
   // ----- members ----- //
   mjModel* model;
   const Task* task;
@@ -129,6 +143,7 @@ class MPPIPlanner : public RankedPlanner {
   // policy
   MPPIPolicy policy;  // (Guarded by mtx_)
   MPPIPolicy candidate_policy[kMaxTrajectory];
+  MPPIPolicy MPPI_candidate_policy[5];
   MPPIPolicy previous_policy;
 
   // scratch
@@ -140,6 +155,7 @@ class MPPIPlanner : public RankedPlanner {
 
   // trajectories
   Trajectory trajectory[kMaxTrajectory];
+  Trajectory MPPI_trajectory[kMaxTrajectory];
 
   // order of indices of rolled out trajectories, ordered by total return
   std::vector<int> trajectory_order;
@@ -198,10 +214,34 @@ class MPPIPlanner : public RankedPlanner {
   //if cost have increased compared to previous_min_return, it have true
   bool cost_trigger = false; 
 
+  // Parameter for storing average cost of n/8 of previous trajectory cost
+  double previous_avg_return;
+
+  // Parameter for current n/8 of previous trajectory cost
+  double current_avg_return;
+
+  // Parameter to keep past 8 action cost
+  
+  double past_cost[32] = {0.0,};
+  double moving_avg;
+  double prev_moving_avg;
+  double moving_variance;
+  double lambda_objective;
+  double prev_lambda_objective;
+  double prev_32_avg;
+  double prev_32_var;
+  int cnt = 0;
+
+  int lambda_choice; // if you increased Lambda previously, +1, if you stay still, 0 , if you decreased Lambda previously, -1
+  int lambda_num = 5;
+  double lambda_list[5] = {0.1, 0.1, 0.1, 0.1, 0.1};
   // double Minetha;
   // double Maxetha;
   double lam_coeff;
   double lam_power;
+  double cov_weight;
+
+  
 };
 
 }  // namespace mjpc

@@ -70,8 +70,13 @@ class Planner {
                      int planner_shift, int timer_shift, int planning,
                      int* shift) = 0;
 
+  // Added by me !! 
+  virtual void setCurrentCost(double cost) = 0;
+
   std::vector<UniqueMjData> data_;
   void ResizeMjData(const mjModel* model, int num_threads);
+
+  
 };
 
 // additional optional interface for planners that can produce several policy

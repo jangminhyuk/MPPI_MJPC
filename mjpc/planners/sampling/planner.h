@@ -104,6 +104,12 @@ class SamplingPlanner : public RankedPlanner {
 
   void CopyCandidateToPolicy(int candidate) override;
 
+  // Added by me !! 
+  void setCurrentCost(double cost) override{
+    current_cost = cost;
+  }
+  double current_cost;
+
   // ----- members ----- //
   mjModel* model;
   const Task* task;

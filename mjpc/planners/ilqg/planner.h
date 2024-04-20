@@ -84,6 +84,11 @@ class iLQGPlanner : public Planner {
 
   void UpdateNumTrajectoriesFromGUI();
 
+  // Added by me !! 
+  void setCurrentCost(double cost) override{
+    current_cost = cost;
+  }
+  double current_cost;
   //
 
   // ----- members ----- //

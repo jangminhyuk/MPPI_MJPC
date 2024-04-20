@@ -80,6 +80,12 @@ class iLQSPlanner : public Planner {
   void Plots(mjvFigure* fig_planner, mjvFigure* fig_timer, int planner_shift,
              int timer_shift, int planning, int* shift) override;
 
+  // Added by me !! 
+  void setCurrentCost(double cost) override{
+    current_cost = cost;
+  }
+  double current_cost;
+
   // ----- planners ----- //
   SamplingPlanner sampling;
   iLQGPlanner ilqg;

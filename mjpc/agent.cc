@@ -26,6 +26,7 @@
 #include <utility>
 #include <iostream>
 #include <fstream>
+#include <typeinfo>
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/strings/match.h>
@@ -281,7 +282,7 @@ void Agent::PlanIteration(ThreadPool* pool) {
     residual_fn_ = ActiveTask()->Residual();
 
     if (plan_enabled) {
-      // planner policy
+      ActivePlanner().setCurrentCost(cost_); // Used for MPPI !! For other planners, this is not used
       ActivePlanner().OptimizePolicy(steps_, *pool);
 
       // compute time
@@ -961,9 +962,9 @@ void Agent::Plots(const mjData* data, int shift) {
   const double* residual = data->sensordata;
 
   //for quadrotor report !! need to be erased after use
-  //myfile.seekg(0);
-  //std::cout <<myfile.rdbuf();
-  //myfile << data->qpos[2] <<std::endl;
+  // myfile.seekg(0);
+  // std::cout <<myfile.rdbuf();
+  // myfile << data->qpos[2] <<std::endl;
   // if (myfile.is_open() && data->time > 10){
   //   myfile << data->qpos[2] <<std::endl;
     
@@ -975,30 +976,31 @@ void Agent::Plots(const mjData* data, int shift) {
   //   }
   // }
   
-  // if(data->time > 15 && data->time <25){
-  //   data1[count][0]=data->time; // time
-  //   data1[count][1]=data->qpos[0]; //x
-  //   data1[count][2]=data->qpos[1]; //y
-  //   data1[count][3]=data->qpos[2]; //z
-  //   //std::cout << data->qpos[0] << " " <<data->qpos[1] << " " <<data->qpos[2] << std::endl;
-  //   count++;
-  // }
-  // if(data->time > 27 && count <10000){
-  //   std::ofstream myfile;
-  //   myfile.open("data.txt");
-  //   if(myfile.is_open()){
-  //     std::cout<<"opened!"<<std::endl;
-  //   }
-  //   for(int i = 0 ; i < count; i++){
-  //     std::cout << data1[i][0]-15 << "," << data1[i][1] << "," << data1[i][2] << "," << data1[i][3] << std::endl;
-  //   }
-  //   count = 1111111;
-  //   myfile.close();
-  //   exit(0);
-  // }
+  if(data->time > 60 && data->time <70){
+    data1[count][0]=data->time; // time
+    data1[count][1]=data->qpos[0]; //x
+    data1[count][2]=data->qpos[1]; //y
+    data1[count][3]=data->qpos[2]; //z
+    //std::cout << data->qpos[0] << " " <<data->qpos[1] << " " <<data->qpos[2] << std::endl;
+    count++;
+  }
+  if(data->time > 75 && count <10000){
+    // std::ofstream myfile;
+    // myfile.open("data.txt");
+    // if(myfile.is_open()){
+    //   std::cout<<"opened!"<<std::endl;
+    // }
+    for(int i = 0 ; i < count; i++){
+      std::cout << data1[i][0]-60 << "," << data1[i][1] << "," << data1[i][2] << "," << data1[i][3] << std::endl;
+    }
+    count = 1111111;
+    //myfile.close();
+    //exit(0);
+  }
 
   //std::cout << "data " << std::endl;
   cost_ = ActiveTask()->CostValue(residual);
+  //std::cout <<"cost : "<<cost_<<std::endl;
 
   // compute individual costs
   for (int t = 0; t < winner->horizon; t++) {
