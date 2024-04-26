@@ -67,7 +67,7 @@ void MPPIPlanner::Initialize(mjModel* model, const Task& task) {
 
   lam_coeff = GetNumberOrDefault(5, model, "lambda coefficient");
   lam_power = GetNumberOrDefault(-2, model, "lambda power");
-  cov_weight = GetNumberOrDefault(10, model, "Lambda objective tuning");
+  cov_weight = GetNumberOrDefault(1, model, "Lambda objective tuning");
 
   if (num_trajectory_ > kMaxTrajectory) {
     mju_error_i("Too many trajectories, %d is the maximum allowed.",
@@ -204,11 +204,17 @@ void MPPIPlanner::Cal_MPPI_candidate(double lambda_candidate, double min_return,
       for(int i = 0 ; i< num_trajectory; i++){//mean calculate
         tmp_mean += alpha_mu*importance_weight[i]*candidate_policy[i].parameters.at(t*model->nu + u);
       }
-      MPPI_candidate_policy[ith].parameters.at(t*model->nu + u) = tmp_mean;
+      if(ith==-1){
+        candidate_policy[0].parameters.at(t*model->nu + u) = tmp_mean;
+      }
+      else{
+        MPPI_candidate_policy[ith].parameters.at(t*model->nu + u) = tmp_mean;
+      }
+      
     }
   }
-  
 }
+
 
 int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
                                               ThreadPool& pool) {
@@ -252,30 +258,42 @@ int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
     trajectory[i].total_return -= min_return;
   }
 
-  absl::BitGen gen_;
-  for(int i = 0 ; i<5 ; i++){
-    lambda_list[i] = absl::Gaussian<double>(gen_, lambda, 0.01*lambda);
-    if(lambda_list[i]<=0){
-      lambda_list[i]=lambda;
+  if(time<50){
+    absl::BitGen gen_;
+    for(int i = 0 ; i<5 ; i++){
+      lambda_list[i] = absl::Gaussian<double>(gen_, lambda, 0.05*lambda);
+      if(lambda_list[i]<=0){
+        lambda_list[i]=lambda;
+      }
+    }
+    
+    //Calculate desired MPPI control law using different Lambda's
+    for(int i = 0 ; i< 5 ; i++){
+      Cal_MPPI_candidate(lambda_list[i], min_return, num_trajectory, i);//Calculate MPPI Candidate policy
+    }
+    //MPPI_candidate_policy[ith].parameters.at(t*model->nu + u) = tmp_mean;
+    
+    for(int i = 0 ; i < 5 ; i++){
+      MPPI_NominalTrajectory(horizon, pool, i); //total_return will be calculated using this new trajectory
+    }
+    //std::cout <<"HERE!!!!" <<std::endl;
+    //Now, MPPI_NominalTrajectory contains the calculated costs
+    //Compute the best MPPI policy(lambda)
+    best_lambda = Optimize_Lambda(horizon); // best_lambda is the index of the best policy
+    lambda = lambda_list[best_lambda];
+
+    //candidate_policy[0] = MPPI_candidate_policy[best_lambda];
+    for(int t = 0 ; t < num_spline_points_; t++ ){
+      for(int u = 0 ; u < model->nu ; u++){
+        //for each input
+        candidate_policy[0].parameters.at(t*model->nu + u) = MPPI_candidate_policy[best_lambda].parameters.at(t*model->nu + u);
+      }
     }
   }
-  
-  //Calculate desired MPPI control law using different Lambda's
-  for(int i = 0 ; i< 5 ; i++){
-    Cal_MPPI_candidate(lambda_list[i], min_return, num_trajectory, i);//Calculate MPPI Candidate policy
+  else{
+    Cal_MPPI_candidate(lambda, min_return, num_trajectory, -1);
   }
-  //MPPI_candidate_policy[ith].parameters.at(t*model->nu + u) = tmp_mean;
-  
-  for(int i = 0 ; i < 5 ; i++){
-    MPPI_NominalTrajectory(horizon, pool, i); //total_return will be calculated using this new trajectory
-  }
-  //std::cout <<"HERE!!!!" <<std::endl;
-  //Now, MPPI_NominalTrajectory contains the calculated costs
-  //Compute the best MPPI policy(lambda)
-  best_lambda = Optimize_Lambda(horizon); // best_lambda is the index of the best policy
-  lambda = lambda_list[best_lambda];
-
-  candidate_policy[0] = MPPI_candidate_policy[best_lambda];
+    
   //std::cout<< "cov par scratch end "<< cov_parameters_scratch.at(0) << std::endl;
   // compute trajectory again using the new MPPI policy
   NominalTrajectory(horizon, pool); //total_return will be calculated using this new trajectory
