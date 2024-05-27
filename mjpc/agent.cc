@@ -59,7 +59,26 @@ inline constexpr double kMaxPlanningHorizon = 2.5;
 const int kMaxActionPlots = 25;
 
 }  // namespace
+void saveDataToFile(double data[10000][4], size_t rows, size_t cols, const std::string& filename) {
+    std::ofstream outFile(filename);
 
+    if (!outFile) {
+        std::cerr << "Unable to open file for writing: " << filename << std::endl;
+        return;
+    }
+
+    for (size_t i = 0; i < rows; ++i) {
+        for (size_t j = 0; j < cols; ++j) {
+            outFile << data[i][j];
+            if (j < cols - 1) {
+                outFile << " ";  // Separate values in the same row by spaces
+            }
+        }
+        outFile << "\n";  // Separate rows by new lines
+    }
+
+    outFile.close();
+}
 Agent::Agent(const mjModel* model, std::shared_ptr<Task> task)
     : Agent::Agent() {
   SetTaskList({std::move(task)});
@@ -976,24 +995,27 @@ void Agent::Plots(const mjData* data, int shift) {
   //   }
   // }
   
-  if(data->time > 60 && data->time <70){
-    data1[count][0]=data->time; // time
+  if(data->time > 60 && data->time <80){
+    data1[count][0]=data->time-60; // time
     data1[count][1]=data->qpos[0]; //x
     data1[count][2]=data->qpos[1]; //y
     data1[count][3]=data->qpos[2]; //z
     //std::cout << data->qpos[0] << " " <<data->qpos[1] << " " <<data->qpos[2] << std::endl;
     count++;
   }
-  if(data->time > 75 && count <10000){
+  if(data->time > 85 && count <10000){
     // std::ofstream myfile;
     // myfile.open("data.txt");
     // if(myfile.is_open()){
     //   std::cout<<"opened!"<<std::endl;
     // }
-    for(int i = 0 ; i < count; i++){
-      std::cout << data1[i][0]-60 << "," << data1[i][1] << "," << data1[i][2] << "," << data1[i][3] << std::endl;
-    }
+    // for(int i = 0 ; i < count; i++){
+    //   std::cout << data1[i][0]-60 << "," << data1[i][1] << "," << data1[i][2] << "," << data1[i][3] << std::endl;
+    // }
+    std::string filename = "Position.txt";
+    saveDataToFile(data1, count, 4, filename);
     count = 1111111;
+    std::cout <<"Position saved"<<std::endl;
     //myfile.close();
     //exit(0);
   }

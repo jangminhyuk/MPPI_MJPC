@@ -143,7 +143,7 @@ class MPPIPlanner : public RankedPlanner {
   // policy
   MPPIPolicy policy;  // (Guarded by mtx_)
   MPPIPolicy candidate_policy[kMaxTrajectory];
-  MPPIPolicy MPPI_candidate_policy[5];
+  MPPIPolicy MPPI_candidate_policy[10];
   MPPIPolicy previous_policy;
 
   // scratch
@@ -233,8 +233,11 @@ class MPPIPlanner : public RankedPlanner {
   int cnt = 0;
 
   int lambda_choice; // if you increased Lambda previously, +1, if you stay still, 0 , if you decreased Lambda previously, -1
-  int lambda_num = 5;
-  double lambda_list[5] = {0.1, 0.1, 0.1, 0.1, 0.1};
+  int lambda_num = 10;
+  
+  double lambda_list[10];
+  std::vector<double> optimal_lambda_save;
+  //double optimal_lambda_save[5000]= {0.0,};
   // double Minetha;
   // double Maxetha;
   double lam_coeff;

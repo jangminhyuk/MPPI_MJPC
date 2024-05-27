@@ -19,6 +19,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <cmath>
+#include <fstream>
 
 #include <absl/random/random.h>
 #include <mujoco/mujoco.h>
@@ -27,7 +28,7 @@
 #include "mjpc/states/state.h"
 #include "mjpc/trajectory.h"
 #include "mjpc/utilities.h"
-
+#include <filesystem>
 namespace mjpc {
 
 namespace mju = ::mujoco::util_mjpc;
@@ -57,7 +58,7 @@ void MPPIPlanner::Initialize(mjModel* model, const Task& task) {
   // set splines num
   num_spline_points_ = GetNumberOrDefault(10, model, "sampling_spline_points");
 
-  lambda = GetNumberOrDefault(0.01, model, "MPPI lambda");
+  lambda = GetNumberOrDefault(0.1, model, "MPPI lambda");
 
   gamma = GetNumberOrDefault(1, model, "MPPI gamma");
 
@@ -166,7 +167,9 @@ void MPPIPlanner::Reset(int horizon) {
   for (const auto& d : data_) {
     mju_zero(d->ctrl, model->nu);
   }
-
+  for (int i = 0; i <lambda_num; ++i) {
+        lambda_list[i] = 0.001;
+    }
   // noise gradient
   std::fill(noise_gradient.begin(), noise_gradient.end(), 0.0);
 
@@ -214,7 +217,25 @@ void MPPIPlanner::Cal_MPPI_candidate(double lambda_candidate, double min_return,
     }
   }
 }
+void saveArrayToFile(const std::vector<double>& array, const std::string& filename) {
+    // Create an output file stream
+    std::ofstream outFile(filename);
 
+    // Check if the file is open
+    if (!outFile) {
+        std::cerr << "Unable to open file for writing: " << filename << std::endl;
+        return;
+    }
+
+    // Write array elements to the file
+    for (const double& value : array) {
+        outFile << value << "\n";
+    }
+    std::cout << "Current working directory: " << std::filesystem::current_path() << std::endl;
+    std::cout <<"Lambda SAVED"<<std::endl;
+    // Close the file
+    outFile.close();
+}
 
 int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
                                               ThreadPool& pool) {
@@ -257,23 +278,31 @@ int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
   for(int i = 0 ; i < num_trajectory; i++){
     trajectory[i].total_return -= min_return;
   }
+  
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  double sigma = 1.0*lambda;
+  std::lognormal_distribution<> distribution(std::log(lambda) + sigma * sigma, sigma);
 
-  if(time<50){
-    absl::BitGen gen_;
-    for(int i = 0 ; i<5 ; i++){
-      lambda_list[i] = absl::Gaussian<double>(gen_, lambda, 0.05*lambda);
+  if(time> 10 && time<50){
+    //absl::BitGen gen_;
+    for(int i = 0 ; i<lambda_num ; i++){
+      // Log Normal distribution
+      //tmp = absl::Gaussian<double>(gen_, lambda, 0.05*lambda);
+      lambda_list[i] = distribution(gen);
       if(lambda_list[i]<=0){
+        std::cout <<"Negative Lambda"<<std::endl;
         lambda_list[i]=lambda;
       }
     }
     
     //Calculate desired MPPI control law using different Lambda's
-    for(int i = 0 ; i< 5 ; i++){
+    for(int i = 0 ; i< lambda_num ; i++){
       Cal_MPPI_candidate(lambda_list[i], min_return, num_trajectory, i);//Calculate MPPI Candidate policy
     }
     //MPPI_candidate_policy[ith].parameters.at(t*model->nu + u) = tmp_mean;
     
-    for(int i = 0 ; i < 5 ; i++){
+    for(int i = 0 ; i < lambda_num ; i++){
       MPPI_NominalTrajectory(horizon, pool, i); //total_return will be calculated using this new trajectory
     }
     //std::cout <<"HERE!!!!" <<std::endl;
@@ -281,7 +310,9 @@ int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
     //Compute the best MPPI policy(lambda)
     best_lambda = Optimize_Lambda(horizon); // best_lambda is the index of the best policy
     lambda = lambda_list[best_lambda];
-
+    //optimal_lambda_save[cnt] = lambda;
+    optimal_lambda_save.push_back(lambda);
+    cnt++;
     //candidate_policy[0] = MPPI_candidate_policy[best_lambda];
     for(int t = 0 ; t < num_spline_points_; t++ ){
       for(int u = 0 ; u < model->nu ; u++){
@@ -292,6 +323,11 @@ int MPPIPlanner::OptimizePolicyCandidates(int ncandidates, int horizon,
   }
   else{
     Cal_MPPI_candidate(lambda, min_return, num_trajectory, -1);
+    if(time>50 && cnt<10000){
+      std::string filename = "optimal_lambda.txt";
+      saveArrayToFile(optimal_lambda_save, filename);
+      cnt = 10001;
+    }
   }
     
   //std::cout<< "cov par scratch end "<< cov_parameters_scratch.at(0) << std::endl;
@@ -308,7 +344,7 @@ int MPPIPlanner::Optimize_Lambda(int horizon){
   double tmp_var;
   double min_obj= 9999999;
   int min_idx = 0;
-  for(int i = 0 ; i < 5 ; i++){
+  for(int i = 0 ; i < lambda_num ; i++){
     tmp_mean = tmp_var = 0;
     for(int t = 0 ; t< horizon ; t++){
       tmp_mean += MPPI_trajectory[i].costs[t];
